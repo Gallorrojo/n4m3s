@@ -1,6 +1,5 @@
 import ssl
 import socket
-import OpenSSL
 import argparse
 import sys
 import os
