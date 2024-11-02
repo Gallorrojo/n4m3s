@@ -5,11 +5,15 @@ import sys
 import os
 import re
 import logging
+import ipaddress
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 
-def logger():
-    logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
+def logger(level):
+    if level:
+        logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+    else:
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def banner():
     print("Por @gallorrojo")
@@ -25,11 +29,11 @@ def parse_args():
     return parser.parse_args()
 
 def parser_error(errmsg):
-    print("Usage: python " + sys.argv[0] + " [Options] use -h for help")
+    logging.ERROR("Usage: python " + sys.argv[0] + " [Options] use -h for help")
     sys.exit()
 
 def write_file(filename, names):
-    print("Saving results to file: ", filename)
+    logging.INFO("Saving results to file: ", filename)
     with open(str(filename), 'wt') as f:
         for key, value in names.items():
             f.write(f"{key},{value}" + os.linesep)
@@ -54,7 +58,7 @@ def get_cn_sans(url):
 
         return cn, sans
     except Exception as e:
-        print(f"No se pudo conectar a {url} - {e}")
+        logging.debug(f"No se pudo conectar a {url} - {e}")
         return None, []
 
 def read_domains_list(inputFile):
@@ -64,40 +68,46 @@ def read_domains_list(inputFile):
             subdominios = [subdominio.strip() for subdominio in subdominios]
         return subdominios
     except Exception as e:
-        logging.error(f"Can't read the file: {inputFile} - {e}")
+        logging.debug(f"Can't read the file: {inputFile} - {e}")
         return []
+
+def isIpAddress(ip_address):
+    try:
+        ipaddress.ip_address(ip_address)
+        return True
+    except ValueError:
+        return None
 
 def isDomain(domain):
     pattern = r'^(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$'
     return re.match(pattern, domain) is not None
 
 def main(domain, inputFile, outputFile, verbose):
+    logger(verbose)
     n4m3s = {}
     if domain:
-        if isDomain(domain):
+        if isDomain(domain) or isIpAddress(domain):
             cn, sans = get_cn_sans(domain)
             if cn is not None:
                 n4m3s[cn] = [sans]
+                logging.info(f"input:{domain}, CN:{cn}, SANS:{sans}")
         else:
-            print(f"{domain} is not a domain")
+            logging.error(f"{domain} is not a domain or ip address")
     if inputFile:
         domains = read_domains_list(inputFile)
         for d in domains:
-            if isDomain(d):
+            if isDomain(d) or isIpAddress(domain):
                 cn, sans = get_cn_sans(d)
                 if cn is not None:
                     n4m3s[cn] = [sans]
+                    logging.info(f"input:{d}, CN:{cn}, SANS:{sans}")
             else:
-                print(f"{d} is not a domain")
+                logging.error(f"{domain} is not a domain or ip address")
     if outputFile:
         write_file(outputFile, n4m3s)
-    if verbose:
-        for key, value in n4m3s.items():
-            print(f"{key},{value}")
 
 def interactive():
     banner()
-    logger()
     args = parse_args()
     domain = args.domain
     inputFile = args.file
